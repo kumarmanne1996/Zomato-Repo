@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+    environment {
+        scannerHome=tool "mysonar"
+    }
+
+    stages {
+        stage('CleanWS') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/kumarmanne1996/Zomato-Repo.git'
+            }
+        }
+        stage('CQA') {
+            steps {
+            withSonarQubeEnv('mysonar') {
+              sh "${scannerHome}/bin/sonar-scanner -D sonar.projectKey=zomato"
+            }   
+            echo "code quality analysis"
+            }
+        }
+        stage('Quality gate') {
+            steps {
+               script{
+                   waitForQualityGate abortPipeline: false, credentialsId: 'sonar-password'
+               }
+            
+            }
+        }
+        stage('Build') {
+            steps {
+            //   sh "docker build -t image1 ."
+            echo "image build already done"
+            
+            }
+        }
+        stage('Scan') {
+            steps {
+               sh "trivy image image1"
+            
+            }
+        }
+        stage('Tag') {
+            steps {
+               sh "docker tag image1 kumarmanne/zomatoproject:v1"
+            }
+        }
+        stage('Push') {
+            steps {
+                script{
+                    withDockerRegistry(credentialsId: 'dockerreg') {
+                    sh "docker push kumarmanne/zomatoproject:v1"
+                    }
+                }
+            }
+        }
+        stage('Deploy'){
+            steps{
+                sh "docker run -itd --name zomato -p 3000:3000 kumarmanne/zomatoproject:v1"
+            }
+        }
+        }
+    }
